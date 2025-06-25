@@ -1,0 +1,183 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16
+    restart: always
+    container_name: n8n_postgresql
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-n8n}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB:-n8n}
+      - POSTGRES_NON_ROOT_USER=${POSTGRES_NON_ROOT_USER:-n8n_user}
+      - POSTGRES_NON_ROOT_PASSWORD=${POSTGRES_NON_ROOT_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-data.sh:/docker-entrypoint-initdb.d/init-data.sh
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -h localhost -U ${POSTGRES_USER:-n8n} -d ${POSTGRES_DB:-n8n}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - coolify
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    container_name: n8n_redis
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - coolify
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    restart: always
+    container_name: n8n_qdrant
+    volumes:
+      - qdrant_data:/qdrant/storage
+    environment:
+      - QDRANT__SERVICE__HTTP_PORT=6333
+      - QDRANT__SERVICE__GRPC_PORT=6334
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:6333/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - coolify
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.qdrant.rule=Host(`qdrant.${SERVICE_FQDN_N8N}`)"
+      - "traefik.http.services.qdrant.loadbalancer.server.port=6333"
+
+  supabase-db:
+    image: supabase/postgres:15.1.0.147
+    restart: always
+    container_name: supabase_postgres
+    environment:
+      - POSTGRES_PASSWORD=${SUPABASE_DB_PASSWORD}
+      - POSTGRES_DB=postgres
+    volumes:
+      - supabase_db_data:/var/lib/postgresql/data
+    networks:
+      - coolify
+
+  supabase-api:
+    image: supabase/postgrest:v12.0.1
+    restart: always
+    container_name: supabase_api
+    depends_on:
+      - supabase-db
+    environment:
+      - PGRST_DB_URI=postgres://postgres:${SUPABASE_DB_PASSWORD}@supabase-db:5432/postgres
+      - PGRST_DB_SCHEMAS=public
+      - PGRST_DB_ANON_ROLE=anon
+      - PGRST_JWT_SECRET=${SUPABASE_JWT_SECRET}
+    networks:
+      - coolify
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.supabase.rule=Host(`supabase.${SERVICE_FQDN_N8N}`)"
+      - "traefik.http.services.supabase.loadbalancer.server.port=3000"
+
+  n8n:
+    build:
+      context: .
+      dockerfile: Dockerfile.n8n
+    restart: always
+    container_name: n8n_app
+    environment:
+      # Configuración Base N8N
+      - N8N_HOST=${SERVICE_FQDN_N8N}
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=https
+      - N8N_ENCRYPTION_KEY=${SERVICE_PASSWORD_64_N8N}
+      
+      # Autenticación
+      - N8N_BASIC_AUTH_ACTIVE=${N8N_BASIC_AUTH_ACTIVE:-true}
+      - N8N_BASIC_AUTH_USER=${SERVICE_USER_N8N}
+      - N8N_BASIC_AUTH_PASSWORD=${SERVICE_PASSWORD_N8N}
+      
+      # Configuración Base de Datos
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=postgres
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=${POSTGRES_DB:-n8n}
+      - DB_POSTGRESDB_USER=${POSTGRES_NON_ROOT_USER:-n8n_user}
+      - DB_POSTGRESDB_PASSWORD=${POSTGRES_NON_ROOT_PASSWORD}
+      
+      # Configuración Redis
+      - QUEUE_BULL_REDIS_HOST=redis
+      - QUEUE_BULL_REDIS_PORT=6379
+      - EXECUTIONS_MODE=queue
+      - QUEUE_HEALTH_CHECK_ACTIVE=true
+      
+      # Configuración Externa
+      - NODE_FUNCTION_ALLOW_EXTERNAL=*
+      - NODE_FUNCTION_ALLOW_BUILTIN=*
+      
+      # Timezone
+      - GENERIC_TIMEZONE=${TIMEZONE:-Europe/Madrid}
+      - TZ=${TIMEZONE:-Europe/Madrid}
+      
+      # Webhook
+      - WEBHOOK_URL=https://${SERVICE_FQDN_N8N}
+      
+      # Configuración de Ejecuciones
+      - EXECUTIONS_DATA_MAX_AGE=${EXECUTIONS_DATA_MAX_AGE:-168}
+      - EXECUTIONS_DATA_PRUNE=true
+      
+      # Logs
+      - N8N_LOG_LEVEL=${N8N_LOG_LEVEL:-info}
+      - N8N_LOG_OUTPUT=${N8N_LOG_OUTPUT:-console}
+      
+      # Servicios Externos
+      - QDRANT_URL=http://qdrant:6333
+      - SUPABASE_URL=http://supabase-api:3000
+      - SUPABASE_KEY=${SUPABASE_JWT_SECRET}
+      
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./scripts:/scripts:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'wget', '--spider', '-q', 'http://127.0.0.1:5678/healthz']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - coolify
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.n8n.rule=Host(`${SERVICE_FQDN_N8N}`)"
+      - "traefik.http.services.n8n.loadbalancer.server.port=5678"
+
+volumes:
+  n8n_data:
+    driver: local
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  qdrant_data:
+    driver: local
+  supabase_db_data:
+    driver: local
+
+networks:
+  coolify:
+    external: true
