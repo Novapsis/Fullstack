@@ -29,19 +29,56 @@ Stack completo de automatización empresarial con N8N, incluyendo todas las herr
 
 1. En tu proyecto Coolify, haz clic en **"Create New Resource"**
 2. Selecciona **"Public Repository"**
-3. Pega la URL: `https://github.com/TU-USUARIO/n8n-automation-stack`
+3. Pega la URL de este repositorio
 4. Selecciona **"Docker Compose"** como Build Pack
 5. Configura:
    - **Base Directory**: `/`
    - **Docker Compose Location**: `/docker-compose.yml`
 
-### Opción 2: Raw Compose Deployment
+### Configuración de Variables
 
-Para control total, usa el Raw Compose Deployment en Coolify y copia directamente el contenido del `docker-compose.yml`.
+Coolify detectará automáticamente las variables del compose. Configura:
 
-## ⚙️ Configuración
+- `POSTGRES_PASSWORD`: Contraseña para PostgreSQL
+- `POSTGRES_NON_ROOT_PASSWORD`: Contraseña para usuario N8N
+- `SUPABASE_DB_PASSWORD`: Contraseña para Supabase
+- `SUPABASE_JWT_SECRET`: Secret JWT de 32 caracteres
 
-### Variables de Entorno Requeridas
+## 📊 Servicios y Acceso
 
-Copia el archivo `.env.example` como base y configura:
+| Servicio | Puerto | Acceso |
+|----------|--------|---------|
+| N8N | 5678 | https://tu-dominio.com |
+| Qdrant | 6333 | https://qdrant.tu-dominio.com |
+| Supabase API | 3000 | https://supabase.tu-dominio.com |
 
+## 🛠️ Herramientas Incluidas
+
+### FFmpeg
+Procesamiento completo de audio y video integrado
+
+### yt-dlp
+Descarga de contenido de YouTube y +1000 sitios
+
+### Librerías de IA
+- OpenAI, Anthropic
+- LangChain, Transformers
+- TensorFlow, PyTorch
+- Qdrant para búsquedas vectoriales
+
+### Librerías JavaScript/Python
+- Manipulación de datos (pandas, lodash)
+- APIs y scraping (axios, requests, beautifulsoup)
+- Bases de datos (psycopg2, redis)
+
+## 📝 Instrucciones Detalladas
+
+Para instrucciones paso a paso completas sobre configuración y uso, consulta la documentación incluida en el repositorio.
+
+## 📄 Licencia
+
+MIT License - Libre para uso comercial y personal.
+
+---
+
+**⭐ Si este proyecto te ayuda, considera darle una estrella!**
