@@ -1,0 +1,89 @@
+FROM n8nio/n8n:latest
+
+# Cambiar a usuario root para instalaciones
+USER root
+
+# Instalar dependencias del sistema
+RUN apk add --no-cache \
+    python3 \
+    python3-dev \
+    py3-pip \
+    ffmpeg \
+    curl \
+    wget \
+    git \
+    build-base \
+    linux-headers \
+    libffi-dev \
+    openssl-dev \
+    nodejs \
+    npm \
+    chromium
+
+# Crear enlace simbólico para python
+RUN ln -sf python3 /usr/bin/python
+
+# Instalar yt-dlp y librerías Python
+RUN pip3 install --break-system-packages \
+    yt-dlp \
+    requests \
+    beautifulsoup4 \
+    selenium \
+    pandas \
+    numpy \
+    pillow \
+    opencv-python-headless \
+    scikit-learn \
+    tensorflow \
+    torch \
+    transformers \
+    langchain \
+    openai \
+    anthropic \
+    psycopg2-binary \
+    redis \
+    qdrant-client \
+    supabase
+
+# Instalar librerías de Node.js adicionales
+RUN npm install -g \
+    axios \
+    lodash \
+    moment \
+    uuid \
+    cheerio \
+    puppeteer \
+    playwright \
+    @supabase/supabase-js \
+    openai \
+    anthropic \
+    langchain \
+    qdrant-js
+
+# Instalar dependencias específicas de n8n
+RUN npm install -g \
+    bcrypt \
+    body-parser \
+    fcm-push \
+    sharp \
+    canvas \
+    pdf-parse \
+    xlsx \
+    crypto-js
+
+# Configurar Puppeteer para usar Chromium
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+
+# Crear directorio para scripts personalizados
+RUN mkdir -p /usr/local/scripts
+
+# Configurar variables de entorno para Python
+ENV PYTHONPATH=/usr/lib/python3.11/site-packages
+ENV PATH=$PATH:/usr/local/scripts
+
+# Volver al usuario node
+USER node
+
+EXPOSE 5678
+
+CMD ["n8n"]
